@@ -19,7 +19,7 @@ Mentre l'Heltec V3 consuma in media tra i `50mA` e i `120mA` a causa dell'attivi
 ### III. La Necessità di un Canale di Comunicazione Bidirezionale e del Reset Fisico
 Il vero cuore del progetto, oltre alla gestione energetica, è la creazione di un **canale di controllo bidirezionale e interattivo** tra l'utente remoto e il nodo isolato. Attraverso la rete radio, l'utente è in grado di inviare comandi alla Digispark e ricevere telemetrie in tempo reale (stato della batteria, soglie impostate, orari operativi).
 
-Molto spesso, a causa di glitch software, saturazione della memoria o bug del firmware principale, i nodi sul palo smettono di trasmettere pur avendo la batteria completamente carica. In questi scenari, l'unica soluzione è un riavvio hardware. Il sistema implementa un comando di **Reset Fisico forzato (`R0`)**: l'utente può inviare un comando radio che costringe la Digispark a tagliare l'alimentazione all'Heltec per 5 secondi tramite il MOSFET. **Questo permette di sbloccare e far ripartire regolarmente il nodo in qualsiasi momento, a prescindere dallo stato della batteria o dall'orario programmato**, salvando l'installazione senza dover fare un'uscita sul campo per tirare giù il palo.
+Molto spesso, a causa di glitch software, saturazione della memoria o bug del firmware principale, i nodi sul palo smettono di trasmettere pur avendo la batteria completamente carica. In questi scenari, l'unica soluzione è un riavvio hardware. Il sistema implementa un comando di **Reset Fisico forzato (`R0`)**: l'utente può inviare un comando radio che costringe la Digispark a tagliare l'alimentazione all'Heltec per 5 secondi tramite il MOSFET.
 
 
 
