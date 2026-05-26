@@ -6,19 +6,20 @@
 
 ## 1. INTRODUZIONE E MOTIVAZIONE DEL PROGETTO
 
-Il presente progetto nasce dall'esperienza diretta sul campo nella gestione di nodi e gateway **Meshtastic** (basati su hardware **Heltec V3** o similari) installati in posizioni isolate o di difficile accesso (es. pali, tetti, vette montane). Nelle installazioni off-grid alimentate esclusivamente da pannelli solari e batterie, l'affidabilità del sistema è costantemente minacciate dalle stagioni invernali, dal maltempo prolungato e dai blocchi software improvvisi.
+Il presente progetto nasce dall'esperienza diretta sul campo nella gestione di nodi e gateway **Meshtastic** (basati su hardware **Heltec V3** o similari) installati in posizioni isolate o di difficile accesso (es. pali, tetti, vette montane) o semplicemente dall'altro lato della città. Nelle installazioni off-grid alimentate esclusivamente da pannelli solari e batterie, l'affidabilità del sistema è costantemente minacciate dalle stagioni invernali, dal maltempo prolungato e dai blocchi software improvvisi.
 
 Questo sistema, basato su una scheda di sviluppo **Digispark (ATtiny85)** interfacciata con un modulo **RTC (orologio hardware)**, nasce per risolvere tre criticità fondamentali che mettono a rischio la sopravvivenza della rete:
 
 ### I. La Protezione dall'Effetto "Albero di Natale"
-Quando una batteria si scarica sotto carico, la sua tensione crolla rapidamente causando lo spegnimento del nodo. Tuttavia, non appena il carico scompare, la tensione della cella risale "a vuoto" (fenomeno del rilassamento chimico). Senza un controllo esterno, il nodo vedrebbe una tensione nuovamente accettabile, si riaccenderebbe (attivando i moduli RF e Wi-Fi), causerebbe un nuovo crollo di tensione e si rispegnerà. Questo ciclo infinito di riavvii continui distrugge la batteria in pochi giorni e corrompe in modo irreversibile il file system della Flash dell'Heltec. Il nostro modulo introduce un'**isteresi intelligente** che congela lo spegnimento finché la batteria non è realmente carica.
+Quando una batteria si scarica sotto carico, la sua tensione crolla rapidamente causando lo spegnimento del nodo. Tuttavia, non appena il carico scompare, la tensione della cella risale "a vuoto" (fenomeno del rilassamento chimico). Senza un controllo esterno, il nodo vedrebbe una tensione nuovamente accettabile, si riaccenderebbe (attivando i moduli RF e Wi-Fi), causerebbe un nuovo crollo di tensione e si rispegnerà. Questo ciclo infinito di riavvii continui distrugge la batteria in pochi giorni e corrompe in modo irreversibile il file system della Flash dell'Heltec. Il nostro modulo introduce un'**isteresi intelligente** che congela lo spegnimento finché la batteria non è realmente carica o carica abbastanza da considerare sicuro la riaccensione.
 
 ### II. L'Ottimizzazione dei Consumi Notturni
-Mentre l'Heltec V3 consuma in media tra i `50mA` e i `120mA` a causa dell'attività radio costante, la scheda Digispark, pur mantenendo attivi il LED di Power e il regolatore di tensione, richiede un consumo fisso di soli **`8mA`**. Spostando la gestione del tempo sulla Digispark, possiamo spegnere completamente l'Heltec durante le ore notturne inutili (es. dall'una di notte alle sei del mattino), riducendo drasticamente il consumo giornaliero complessivo ed evitando che il nodo si spenga proprio nelle ore di picco del giorno successivo.
+Mentre l'Heltec V3 consuma in media tra i `70mA` e i `120mA` a causa dell'attività radio costante, la scheda Digispark, pur mantenendo attivi i LED di Power e BuiltIn ma rimuovento già il solor regolatore di tensione 7805, richiede un consumo di circa  **`8mA`**. Spostando la gestione del tempo sulla Digispark, possiamo spegnere completamente l'Heltec durante le ore notturne inutili (es. dall'una di notte alle sei del mattino), riducendo drasticamente il consumo giornaliero complessivo ed evitando che il nodo si spenga proprio nelle ore di picco del giorno successivo.
 
 ### III. La Necessità di un Canale di Comunicazione Bidirezionale e del Reset Fisico
-Il vero cuore del progetto, oltre alla gestione energetica, è la creazione di un **canale di controllo bidirezionale e interattivo** tra l'utente remoto e il nodo isolato. Attraverso la rete radio, l'utente è in grado di inviare comandi alla Digispark e ricevere telemetrie in tempo reale (stato della batteria, soglie impostate, orari operativi).
+Il vero cuore del progetto, oltre alla gestione energetica, è la creazione di un **canale di controllo bidirezionale e interattivo crittografato quindi sicuro** tra l'utente remoto e il nodo isolato. Attraverso la rete radio, l'utente è in grado di inviare comandi alla Digispark e ricevere telemetrie in tempo reale (stato della batteria, soglie impostate, orari operativi on/off e reset cadenzati).
 
+Molto spesso, a causa di glitch software, saturazione della memoria o bug del firmware principale, i nodi sul palo smettono di trasmettere pur avendo la batteria completamente carica. In questi scenari, l'unica soluzione è un riavvio hardware. Il sistema implementa un comando di reset fisico forzato.  L'utente inoltre può programmare ad intervalli regolari il reset del nodo attraverso ATtiny85 Digispark togliendo l'alimentazione all'Heltec per 5 secondi tramite il MOSFET. **Questo permette di sbloccare e far ripartire regolarmente il nodo a prescindere dall'orario programmato**, salvando l'installazione senza dover fare un'uscita sul campo per tirare giù il palo.
 
 
 
@@ -27,12 +28,12 @@ Il vero cuore del progetto, oltre alla gestione energetica, è la creazione di u
 Il vero punto di forza di questo modulo non è solo la gestione passiva dell'energia, ma la sua capacità di agire come un'estensione interattiva del nodo remoto. Il sistema stabilisce un vero e proprio ponte di comunicazione bidirezionale tra l'amministratore della rete (remoto) e la scheda Digispark (sul palo), sfruttando l'infrastruttura radio della rete Mesh.
 
 ### Il Canale 0 Cifrato Privato (Sicurezza e Isolamento)
-Nelle reti pubbliche Meshtastic (come il canale generico `LongFast`), chiunque può teoricamente ascoltare il traffico o tentare di inviare stringhe di testo. Per evitare che utenti terzi o malintenzionati possano alterare i parametri del tuo nodo, spegnerlo o resettarlo, l'architettura del progetto prevede una compartimentazione rigida:
+Nelle reti pubbliche Meshtastic (come il canale generico `MediumFast`), chiunque può teoricamente ascoltare il traffico o tentare di inviare stringhe di testo. Per evitare che utenti terzi o malintenzionati possano alterare i parametri del tuo nodo, spegnerlo o resettarlo, l'architettura del progetto prevede una compartimentazione rigida:
 
 * **Canale Primario (Slot 0):** Viene configurato come un **canale privato con chiave crittografica simmetrica personalizzata (AES-256)**. Questo canale è invisibile e inaccessibile agli utenti della rete pubblica e viene utilizzato esclusivamente dai gestori del nodo per l'invio dei comandi di telemetria e configurazione.
 * **Canali Secondari (Slot 1, 2, ecc.):** Vengono utilizzati per ospitare i canali pubblici (es. la chat di zona, i canali tematici o i servizi meteo). 
 
-L'Heltec V3 è configurato in modo da inoltrare sulla sua porta seriale fisica (GPIO 45/46) solo i messaggi decodificati appartenenti al Canale 0 privato. In questo modo, la Digispark è completamente isolata dal traffico "rumoroso" della chat pubblica e risponde solo agli ordini legittimi del proprietario del nodo che possiede la chiave cifrata.
+L'Heltec V3 è configurato in modo da inoltrare sulla sua porta seriale fisica (GPIO 45/46) i messaggi in arrivo e viceversa di inviare sul Canale 0 dati/messaggi recevuti da ATtiny85. **Si instaura cosi un canale di comunicazione bidirezionale tra ATtiny85 e Heltec.**
 
 ---
 
@@ -41,7 +42,7 @@ Per blindare la comunicazione, dobbiamo fare in modo che lo Slot 0 (il canale pr
 
 Ecco i passaggi da seguire all'interno dell'app ufficiale **Meshtastic** (iOS o Android):
 
-1. **Isolare il Canale Primario:** Apri l'applicazione, connettiti al nodo tramite Bluetooth e vai nella sezione dedicata alla gestione dei **Canali** (*Channels*). Seleziona lo **Slot 0**, che di fabbrica è impostato come *LongFast*. Il nostro obiettivo è modificarlo radicalmente per farlo diventare il tuo canale di amministrazione.
+1. **Isolare il Canale Primario:** Apri l'applicazione, connettiti al nodo tramite Bluetooth e vai nella sezione dedicata alla gestione dei **Canali** (*Channels*). Seleziona lo **Slot 0**, che di fabbrica è impostato come *MediumFast*. Il nostro obiettivo è modificarlo radicalmente per farlo diventare il tuo canale di amministrazione.
 
 2. **Personalizzare il Nome e Generare la Chiave (PSK):** Entra nelle impostazioni dello Slot 0 e cambia il nome del canale (ad esempio inserendo *"MioNodoAdmin"* o un nome di fantasia a tua scelta). Subito sotto, cerca la voce relativa alla chiave precondivisa (*Pre-Shared Key* o *PSK*). Di default è impostata su *Default* (quella pubblica); clicca sull'opzione per **generare una chiave casuale a 256 bit** (indicata spesso da un'icona a forma di chiave o un pulsante per il reset della chiave). L'app la imposterà automaticamente.
 
@@ -82,6 +83,11 @@ La bidirezionalità si completata quando la Digispark deve rispondere a un coman
 
 Poiché la Digispark non ha un modulo radio proprio, scrive la stringa di risposta sulla seriale verso l'Heltec (pin 45). L'Heltec riceve la stringa e, interpretandola come dati da trasmettere (grazie anche all'opzione `Echo Enabled` attiva), genera a sua volta un pacchetto `TEXT_MSG` che viene irradiato sulla rete Mesh e recapitato direttamente sul display dell'applicazione del gestore. Questo permette di fare una vera e propria sessione di "interrogazione" e programmazione interattiva a distanza di chilometri.
 
+## Risoluzione Problemi di Livelli Logici (Il Diodo Schottky)
+Nelle installazioni solari, la tensione di batteria può raggiungere i 4.2V-4.3V durante i picchi di carica. Questo valore, applicato direttamente all'ATtiny e all'RTC, può causare instabilità nei livelli logici della comunicazione seriale con l'Heltec.
+
+- Soluzione: È stato inserito un diodo Schottky in serie al ramo positivo di alimentazione dell'ATtiny e del modulo RTC. Questo crea una caduta di tensione (offset) di circa 300mV, mantenendo la logica di controllo in un range operativo sicuro e stabile, compatibile con i livelli dell'Heltec alimentato direttamente dalla batteria. Il firmware applica un offset software di +300mV nella funzione di lettura ADC per compensare questa caduta e restituire un valore di tensione reale.
+
 
 
 ## 3. ARCHITETTURA HARDWARE E CONSUMI (DIGISPARK)
@@ -108,7 +114,7 @@ La massa ($GND$) deve rimanere sempre in comune tra la batteria, la Digispark, l
 
 #### Mappatura dei Collegamenti della Digispark:
 
-* **Pin `5V`:** Alimentazione principale proveniente direttamente dal positivo del pacco batteria (bypassando il regolatore rimosso).
+* **Pin `5V`:** Alimentazione tramite Diodo Schottky (positivo batteria -> Diodo -> VCC ATtiny/RTC).
 * **Pin `GND`:** Massa comune di tutto il sistema.
 * **Pin `P0` (SDA):** Linea dati I2C collegata al pin SDA del modulo RTC (DS3231 o DS1307).
 * **Pin `P1` (Controllo):** Collegato al **Gate** del MOSFET a Canale P attraverso una resistenza di limitazione (es. 220 $\Omega$). Un resistore di pull-up da 10k $\Omega$ tra il Gate e il positivo della batteria assicura che l'Heltec rimanga spento di sicurezza se la Digispark dovesse resettarsi o spegnersi.
@@ -124,47 +130,57 @@ Il firmware pilota il Gate del MOSFET sfruttando la logica invertita tipica dei 
 
 
 ## 4. LOGICA DI FUNZIONAMENTO E ALGORITMO AD IMBUTO
+Il firmware esegue il ciclo di controllo ogni 10 secondi. Questo intervallo è stato scelto per tre ragioni: riduce il consumo della Digispark, evita di stressare il bus I2C e agisce come un filtro naturale contro i micro-sbalzi di tensione causati dai picchi di trasmissione radio dell'Heltec V3.
 
-Il firmware esegue il ciclo di controllo ogni **10 secondi**. Questo intervallo è stato scelto per tre ragioni: riduce il consumo della Digispark, evita di stressare il bus I2C e agisce come un filtro naturale contro i micro-sbalzi di tensione causati dai picchi di trasmissione radio dell'Heltec V3.
+La stabilità totale del sistema è garantita da una struttura logica a imbuto, dove le condizioni elettriche della batteria hanno la priorità assoluta su qualsiasi impostazione oraria. Il sistema gestisce due soglie fondamentali in millivolt salvate nella EEPROM:
 
-La stabilità totale del sistema è garantita da una **struttura logica a imbuto**, dove le condizioni elettriche della batteria hanno la priorità assoluta su qualsiasi impostazione oraria.
+- sMin (Soglia Minima, default 3600mV): Il punto di crollo oltre il quale la cella rischia la scarica profonda.
 
+- sRes (Soglia di Rientro/Wakeup, default 3800mV): La tensione di sicurezza che garantisce che la batteria stia accumulando vera energia dal sole.
 
-### Criterio 1: Il Filtro Anti-Falso Contatto
-Prima di elaborare qualsiasi dato, la Digispark verifica che la tensione letta sia superiore a **`2000mV`** (2.0V). Se la lettura scende sotto questa soglia, il software la interpreta come un errore di campionamento del convertitore ADC, una batteria scollegata temporaneamente o un falso contatto elettrico transitorio. In questo caso specifico, il firmware **congela lo stato attuale** e non modifica il pin del MOSFET, evitando che un disturbo elettrico spenta il nodo per errore o corrompa i flag in memoria.
+L'algoritmo crea una "Zona Grigia" intelligente tra queste due soglie, gestita tramite un flag logico (bloccoBatteria) che memorizza lo stato storico del circuito:
 
-### Criterio 2: La Matematica dell'Isteresi Stretta (Priorità 1)
-Il sistema gestisce due soglie fondamentali in millivolt salvate nella EEPROM permanente:
-* **`sMin` (Soglia Minima, default `3400mV`):** Il punto di crollo oltre il quale la cella rischia la scarica profonda.
-* **`sRes` (Soglia di Rientro/Wakeup, default `3650mV`):** La tensione di sicurezza che garantisce che la batteria stia accumulando vera energia dal sole.
+- In fase di scarica (Discesa): Se la batteria è carica e scende lentamente, il sistema rimane in stato OK. L'Heltec resta acceso e continua a seguire la programmazione oraria. La zona grigia viene ignorata perché la batteria non ha ancora toccato il fondo (sMin).
 
-L'algoritmo crea una **"Zona Grigia"** intelligente tra queste due soglie, gestita tramite un flag logico (`bloccoBatteria`) che memorizza lo stato storico del circuito:
-* **In fase di scarica (Discesa):** Se la batteria è carica e scende lentamente (es. 3.7V $\rightarrow$ 3.6V $\rightarrow$ 3.5V), il sistema rimane in stato `OK`. L'Heltec resta acceso e continua a seguire la programmazione oraria. La zona grigia viene ignorata perché la batteria non ha ancora toccato il fondo (`sMin`).
-* **In fase di emergenza (Crollo):** Se la tensione tocca i `3.39V` (inferiore a `sMin`), scatta istantaneamente il blocco (`bloccoBatteria = true`). Il MOSFET viene forzato a `HIGH` (SPENTO). Da questo momento, il timer viene completamente bypassato e ignorato.
-* **In fase di ricarica (Risalita):** Il giorno dopo sorge il sole e il pannello ricarica la cella. La tensione sale a `3.55V`. Il sistema si trova nella zona grigia, ma si ricorda del blocco precedente. Di conseguenza, **mantiene l'Heltec spento**. L'Heltec riceverà il permesso di riaccendersi **solo e soltanto quando** la tensione eguaglierà o supererà i `3650mV` (`sRes`). 
+- In fase di emergenza (Crollo): Se la tensione scende sotto i 3600mV, scatta istantaneamente il blocco (bloccoBatteria = true). Il MOSFET viene forzato a HIGH (SPENTO). Da questo momento, il timer viene completamente bypassato e ignorato.
+
+- In fase di ricarica (Risalita): Il giorno dopo sorge il sole e il pannello ricarica la cella. La tensione sale (es. 3700mV). Il sistema si trova nella zona grigia, ma si ricorda del blocco precedente. Di conseguenza, mantiene l'Heltec spento. L'Heltec riceverà il permesso di riaccendersi solo e soltanto quando la tensione eguaglierà o supererà i 3800mV (sRes).
 
 Questo pilastro azzera l'effetto "Albero di Natale", permettendo al pannello solare di ricaricare la batteria a vuoto (senza il carico da 100mA dell'Heltec) nella sua fase più critica.
 
-### Criterio 3: Gestione Oraria e il Passaggio della Mezzanotte (Priorità 2)
-Se la batteria è in stato `OK` (`bloccoBatteria = false`), la Digispark interroga l'RTC e analizza la finestra temporale. Per rendere i calcoli fulminei ed evitare l'allocazione di oggetti pesanti in memoria, gli orari vengono convertiti in un **unico numero intero a 4 cifre** tramite la formula: `(Ore * 100) + Minuti`. *(Ad esempio, le 08:15 diventa l'intero `815`, le 23:45 diventa `2345`).*
+### Gestione Resilienza: Timer di Reset Periodici
+Per garantire che il sistema sia sempre raggiungibile anche in caso di rari blocchi software o interruzioni seriali, sono stati implementati due timer di reset indipendenti (configurabili da 0 a 99 ore):
 
-Il firmware gestisce nativamente e in modo matematico il **passaggio della mezzanotte** (ovvero quando l'orario di spegnimento è numericamente inferiore a quello di accensione, come ad esempio: accensione alle 08:00 e spegnimento alle 01:30 del mattino successivo). Il controllo viene eseguito tramite un operatore ternario compatto ed efficiente:
+- **Timer A** (!1234A): Reset forzato dell'intero ATtiny tramite Watchdog Timer. È il riavvio totale del sistema.
 
-```cpp
-bool in = (oON <= oOFF) ? (oraAttuale >= oON && oraAttuale < oOFF) 
-                        : (oraAttuale >= oON || oraAttuale < oOFF);
+- **Timer H** (!1234H): Reset fisico del carico (Heltec). Il MOSFET apre il circuito per 5 secondi e poi lo richiude.
 
-```
+- **Nota:** Se il valore è impostato a 0, il timer è disabilitato.
+ 
+**Va sottolineato che anche, si  i due timer sono indipendenti ma va da se che il timer A (quello che gestisce il reset di Attiny85) una volta che interviene porta ad un reset del microcontrollore il quale, riavviandosi, necessariamente azzera anche il timer H (quello dell heltec). Tenuto conto di questa "dipendenza" il calcolo delle ore cadenzate del reset di H non deve mai superare le ore del reset di A per una corretta ciclicità dei reset A e H.**
 
-## 5. INTERFACCIA COMANDI CLI (SERIALE VIA RADIO) E SICUREZZA DEL PIN
+## 5. NOTE TECNICHE E RISOLUZIONE PROBLEMI (Troubleshooting)
+Stabilità dei livelli logici (Diodo Schottky):
+Per garantire una comunicazione seriale affidabile tra l'ATtiny (alimentato via diodo) e l'Heltec (alimentato diretto), è stato inserito un diodo Schottky in serie al ramo positivo dell'ATtiny. Questo crea un offset di ~300mV, armonizzando i livelli logici anche a piena carica solare. Il firmware applica una compensazione software per mantenere precisa la lettura ADC.
+Si sarebbe dovuto usare un convertitori di livelli logici di segnale da 3.3v a 5.0V che se volete potete interporre nei collegamenti rx/tx tra heltec e ATtiny, ma nella logica della **"estrema semplicità di cotruzione"** ho voluto evitare.
 
-Il controllo remoto e la telemetria del sistema si basano su un'interfaccia a riga di comando (CLI) protetta. La Digispark intercetta i dati provenienti dall'Heltec V3 (GPIO 45/46) analizzando il flusso di testo ASCII in tempo reale.
+
+
+## 6. INTERFACCIA COMANDI CLI (SERIALE VIA RADIO) E SICUREZZA DEL PIN
+
+### Modalità TEXTMSG Seriale
+Il controllo remoto e la telemetria del sistema si basano su un'interfaccia a riga di comando (CLI) protetta. Per garantire che il flusso di dati sia leggibile e gestibile in tempo reale dalla Digispark, il firmware dell'Heltec V3 deve essere configurato tassativamente in modalità TEXTMSG (Serial Mode).
+
+Questa specifica modalità di funzionamento è cruciale: essa istruisce l'Heltec a convertire ogni pacchetto dati ricevuto dalla rete radio in una semplice stringa di testo ASCII sulla sua porta seriale fisica (GPIO 45/46). In questo modo, la Digispark intercetta il flusso di caratteri in tempo reale senza la necessità di complessi parser per protocolli binari, permettendo una risposta immediata ai comandi.
 
 ### Meccanismo di Sicurezza: Il PIN a 4 Cifre
-Tutti i messaggi inviati via radio devono rispettare una formattazione rigida per essere eseguiti. Per impedire l'invio di comandi non autorizzati, il sistema richiede l'inserimento di un **PIN numerico a 4 cifre** (impostato di default a `1234`), posizionato subito dopo il carattere di attivazione `!`. 
+Il sistema di controllo remoto è protetto da un PIN numerico a 4 cifre (impostato di default a 1234), necessario per validare ogni comando inviato via radio. La sintassi universale di ogni stringa di comando è: ![PIN][COMANDO][VALORE].
 
-La sintassi universale di ogni stringa è: `![PIN][COMANDO][VALORE]`. 
-Se il PIN ricevuto non corrisponde esattamente a quello memorizzato nella EEPROM della Digispark, il comando viene istantaneamente scartato senza produrre alcuna azione o risposta radio.
+Validazione: La Digispark intercetta il carattere iniziale ! e verifica immediatamente se le 4 cifre successive corrispondono a quelle memorizzate nella sua EEPROM.
+
+Scarto: Se il PIN non coincide, il sistema scarta l'intera stringa in modo silenzioso, prevenendo tentativi di manomissione o invii accidentali da parte di altri nodi sulla rete.
+
+Recupero/Modifica: In caso di errore umano durante la programmazione, se il PIN venisse inviata accidentalmente senza il nuovo pin (es. !1234P" automaticamente viene impostato su 0000, anche gli altri comandi che richiedono inserimento numerico, in caso di assenza verra impostato a 00. Ritornando all'eventualità di aver dato comando di cambio PIN con es. !1234P verra accettato e il nuovo pin sarà 0000. Bastera quindi reimpostare in pin corretto digitando !0000P[NuovoPIN].
 
 ### Ottimizzazione dei Feedback (Risposte a Carattere Singolo)
 Poiché la memoria Flash della Digispark è occupata al **99%**, è stato impossibile inserire stringhe di testo descrittive per le risposte (es: `"Ora modificata con successo"`). Ogni stringa di testo estesa avrebbe occupato centinaia di byte, causando il fallimento della compilazione dello sketch.
@@ -177,7 +193,12 @@ Per ovviare a questo limite hardware, il firmware implementa un sistema di **Fee
 * **`K`** $\rightarrow$ **OK:** Conferma che l'orario programmato di accensione (`ON`) o spegnimento (`OF`) è stato salvato.
 * **`P`** $\rightarrow$ **PIN:** Conferma che il PIN di sicurezza a 4 cifre è stato cambiato con successo.
 * **`R`** $\rightarrow$ **Reset:** Conferma che il comando di Hard Reset fisico è stato preso in carico.
+* **`A`** $\rightarrow$ **ATtiny**: Conferma che il timer di reset periodico dell'ATtiny è stato impostato.
+* **`H`** $\rightarrow$ **Heltec**: Conferma che il timer di reset fisico del carico è stato impostato.
+* **`E`** $\rightarrow$ **Heltec**: Errore invio del comando. Comando non riconosciuto.
 
+ ### Nota bene sui comandi di lettura (Get)
+ ##### I comandi che iniziano con g (es. gA, gH, gB, gP, gT) non restituiscono un feedback di conferma K, ma inviano direttamente il valore corrente del parametro richiesto sulla seriale, permettendoti di monitorare lo stato del nodo in tempo reale.
 ---
 
 ### Dizionario Completo dei Comandi di Configurazione
@@ -186,6 +207,8 @@ Tutti i valori di tensione devono essere espressi in millivolt (es. 3.4V diventa
 
 | Stringa Comando | Azione Svolta dal Firmware | Feedback | Esempio Pratico |
 | :--- | :--- | :---: | :--- |
+|**`!1234A[ore]`**	|Imposta timer reset ATtiny (0-99h)	|`A`	|!1234A24|
+|**`!1234H[ore]`**	|Imposta timer reset Heltec (0-99h)	|`H`	|!1234H12|
 | **`!1234T[HHMM]`** | Sincronizza l'ora e i minuti correnti sul modulo orologio hardware RTC. | `T` | `!1234T1435` (Imposta l'orologio alle 14:35) |
 | **`!1234M[mV]`** | Modifica la soglia minima di spegnimento d'emergenza (`sMin`). | `M` | `!1234M3400` (Imposta lo spegnimento a 3.40V) |
 | **`!1234W[mV]`** | Modifica la soglia di sblocco e risveglio dall'isteresi (`sRes`). | `W` | `!1234W3650` (Imposta il wakeup a 3.65V) |
@@ -193,6 +216,8 @@ Tutti i valori di tensione devono essere espressi in millivolt (es. 3.4V diventa
 | **`!1234OF[HHMM]`**| Imposta l'orario del timer giornaliero per lo spegnimento dell'Heltec. | `K` | `!1234OF2315` (Spegnimento automatico alle 23:15) |
 | **`!1234P[Nuovo]`** | Sostituisce il vecchio PIN di sicurezza con un nuovo codice a 4 cifre. | `P` | `!1234P5678` (Cambia il PIN d'accesso in 5678) |
 | **`!1234R0`** | **Hard Reset Fisico:** Forza il MOSFET a spegnere l'Heltec per 5s e poi lo riaccende. | `R` | `!1234R0` (Sblocca l'Heltec se congelato o in crash) |
+
+
 
 ---
 
@@ -203,7 +228,7 @@ Inviando questi comandi, l'interfaccia risponderà restituendo una stringa compa
 #### 1. Richiesta Dati Batteria (`!1234gB`)
 Restituisce lo stato elettrico attuale del nodo. 
 * *Formato Risposta:* `TensioneAttuale-sMin-sRes`
-* *Esempio:* Se invii `!1234gB` e ricevi `3580-3400-3650`, significa che la batteria gode di ottima salute ed è a 3.58V, lo spegnimento è tarato a 3.4V e il rientro a 3.65V.
+* *Esempio:* Se invii `!1234gB` e ricevi `3580-3600-3800`, significa che la batteria gode di ottima salute ed è a 3.58V, lo spegnimento è tarato a 3.6V e il rientro a 3.8V.
 
 #### 2. Richiesta Programmazione Oraria (`!1234gP`)
 Restituisce la finestra oraria operativa in cui il nodo ha il permesso di rimanere acceso.
@@ -214,10 +239,23 @@ Restituisce la finestra oraria operativa in cui il nodo ha il permesso di rimane
 Interroga direttamente i registri del modulo RTC per verificare la sincronizzazione dell'orologio di sistema.
 * *Formato Risposta:* `HH:MM`
 * *Esempio:* Ricevere `21:45` permette di verificare da remoto se l'orologio interno del palo è allineato con l'ora reale o se ha accumulato deriva temporale.
+####  4. Richiesta Timer Reset Heltec (`!1234gH`)
+Restituisce il valore del timer di reset ciclico del carico (Heltec).
+
+- Formato Risposta: `HH` (ore)
+
+- Esempio: Ricevere `12` indica che il sistema è configurato per resettare fisicamente l'Heltec ogni 12 ore.
+
+#### 5. Richiesta Timer Reset ATtiny (`!1234gA`)
+Restituisce il valore del timer di reset ciclico del microcontrollore ATtiny.
+
+- Formato Risposta: `HH` (ore)
+
+- Esempio: Ricevere `24` indica che il sistema effettuerà un riavvio totale (Watchdog) ogni 24 ore.
 
 
 
-## 6. OTTIMIZZAZIONE LOW-LEVEL E GUIDA AL CARICAMENTO
+## 7. OTTIMIZZAZIONE LOW-LEVEL E GUIDA AL CARICAMENTO
 
 L'intero firmware è stato sviluppato seguendo criteri di ottimizzazione estrema per consentire la coesistenza di funzionalità complesse (seriale software, calcoli temporali, gestione EEPROM e bus I2C) entro i limiti fisici della Flash della Digispark, occupando ben il **99% dello spazio disponibile**.
 
