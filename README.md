@@ -157,7 +157,14 @@ Per garantire che il sistema sia sempre raggiungibile anche in caso di rari bloc
 
 - **Nota:** Se il valore è impostato a 0, il timer è disabilitato.
  
-**Va sottolineato che anche, si  i due timer sono indipendenti ma va da se che il timer A (quello che gestisce il reset di Attiny85) una volta che interviene porta ad un reset del microcontrollore il quale, riavviandosi, necessariamente azzera anche il timer H (quello dell heltec). Tenuto conto di questa "dipendenza" il calcolo delle ore cadenzate del reset di H non deve mai superare le ore del reset di A per una corretta ciclicità dei reset A e H.**
+**Va sottolineato che i due timer non sono totalmente indipendenti, va da se che il timer A (quello che gestisce il reset di Attiny85) una volta che interviene porta ad un reset del microcontrollore il quale, riavviandosi, necessariamente azzera anche il timer H (quello dell heltec). Tenuto conto di questa "dipendenza" il calcolo delle ore cadenzate del reset di H non deve mai superare le ore del reset di A per una corretta ciclicità dei reset A e H.**
+
+### Strategia di Reset Consigliata
+
+| Componente | Strategia di Reset (Esempio) | Obiettivo |
+| :--- | :--- | :--- |
+| **Heltec (Carico)** | Ogni 47 ore | Pulizia ciclica della periferica |
+| **ATtiny (Sistema)** | Ogni 96 ore | Reset "Hard" globale del supervisore |
 
 ## 5. NOTE TECNICHE E RISOLUZIONE PROBLEMI (Troubleshooting)
 Stabilità dei livelli logici (Diodo Schottky):
@@ -180,7 +187,7 @@ Validazione: La Digispark intercetta il carattere iniziale ! e verifica immediat
 
 Scarto: Se il PIN non coincide, il sistema scarta l'intera stringa in modo silenzioso, prevenendo tentativi di manomissione o invii accidentali da parte di altri nodi sulla rete.
 
-Recupero/Modifica: In caso di errore umano durante la programmazione, se il PIN venisse inviata accidentalmente senza il nuovo pin (es. !1234P" automaticamente viene impostato su 0000, anche gli altri comandi che richiedono inserimento numerico, in caso di assenza verra impostato a 00. Ritornando all'eventualità di aver dato comando di cambio PIN con es. !1234P verra accettato e il nuovo pin sarà 0000. Bastera quindi reimpostare in pin corretto digitando !0000P[NuovoPIN].
+**Recupero/Modifica in caso di errore**: In caso di errore umano durante la programmazione, se il PIN venisse inviato accidentalmente senza il nuovo pin (es. !1234P" automaticamente viene impostato su 0000, anche gli altri comandi che richiedono inserimento numerico, in caso di assenza verra impostato a 00. Ritornando all'eventualità di aver dato comando di cambio PIN con es. !1234P verra accettato e il nuovo pin sarà 0000. Bastera quindi reimpostare in pin corretto digitando **!0000P[NuovoPIN]**.
 
 ### Ottimizzazione dei Feedback (Risposte a Carattere Singolo)
 Poiché la memoria Flash della Digispark è occupata al **99%**, è stato impossibile inserire stringhe di testo descrittive per le risposte (es: `"Ora modificata con successo"`). Ogni stringa di testo estesa avrebbe occupato centinaia di byte, causando il fallimento della compilazione dello sketch.
