@@ -1,140 +1,176 @@
-#include <SoftSerial.h> // Libreria per la comunicazione seriale software
-#include <TinyWireM.h>  // Libreria per la comunicazione I2C su ATtiny85
+#include <SoftSerial.h>       // Libreria per comunicazione seriale software
+#include <TinyWireM.h>        // Libreria per comunicazione I2C su ATtiny
+#include <avr/wdt.h>          // Libreria per il Watchdog Timer (reset sistema)
 
-#define RX 4            // Pin 4 dell'ATtiny per ricevere dati (RX)
-#define TX 3            // Pin 3 dell'ATtiny per trasmettere dati (TX)
-#define MOS 1           // Pin 1 dell'ATtiny per il Gate del MOSFET (0=ACCESO, 1=SPENTO)
-#define RTC 0x68        // Indirizzo I2C del modulo orologio DS3231/1307
+#define R 4                   // Pin 4: ricezione seriale (RX)
+#define T 3                   // Pin 3: trasmissione seriale (TX)
+#define M 1                   // Pin 1: comando MOSFET
+#define RTC 0x68              // Indirizzo I2C dell'RTC DS3231/1307
 
-SoftSerial myS(RX, TX); // Inizializzazione della porta seriale software
+SoftSerial s(R, T);           // Istanza porta seriale software
+int ON, OF, P;                // Variabili orario accensione, spegnimento e password
+unsigned int sN, sS;          // Soglie tensione (minima e ripristino)
+unsigned long tA, tH, lR, lH; // Timer watchdog, reset carico e relative memorie temporali
 
-int oON, mON, oOFF, mOFF, pass; // Variabili per orari e Password
-unsigned int sMin, sRes;        // Soglie batteria Minima e Rientro (in mV)
+void out(unsigned long n) {   // Funzione per inviare numeri via seriale
+  if(n >= 10) out(n / 10);    // Ricorsione per decomporre il numero cifra per cifra
+  s.write((n % 10) + '0');    // Converte la cifra in formato ASCII e la scrive
+}                             // Fine funzione out
 
-byte b2d(byte v) { return ((v / 16 * 10) + (v % 16)); } // Converte formato BCD dell'RTC in decimale
-byte d2b(byte v) { return ((v / 10 * 16) + (v % 10)); } // Converte decimale in formato BCD per l'RTC
+void out2(int n) {            // Funzione per inviare numeri con zero iniziale (es. 09)
+  if(n < 10) s.write('0');    // Aggiunge lo '0' se il numero è una sola cifra
+  out(n);                     // Chiama la funzione di stampa base
+}                             // Fine funzione out2
 
-// Scrive un byte nella memoria permanente EEPROM dell'ATtiny
-void EE_w(int a, byte d) { while(EECR & (1<<EEPE)); EEAR = a; EEDR = d; EECR |= (1<<EEMPE); EECR |= (1<<EEPE); }
-// Legge un byte dalla memoria permanente EEPROM dell'ATtiny
-byte EE_r(int a) { while(EECR & (1<<EEPE)); EEAR = a; EECR |= (1<<EERE); return EEDR; }
+byte b2d(byte v) {            // Converte formato BCD da RTC in decimale
+  return ((v >> 4) * 10) + (v & 15); // Logica di calcolo per conversione BCD
+}                             // Fine funzione b2d
 
-// Funzione per leggere la tensione della batteria (Internal Bandgap dell'ATtiny)
-unsigned int readV() {
-  ADMUX = 12; delay(5); ADCSRA |= 64; while (ADCSRA & 64); // Configura ADC e avvia campionamento
-  return (unsigned int)(1090270L / (ADCL | (ADCH << 8))); // Calcola i millivolt effettivi
-}
+byte d2b(byte v) {            // Converte decimale in BCD per invio a RTC
+  return ((v / 10) << 4) + (v % 10); // Logica di calcolo per conversione a BCD
+}                             // Fine funzione d2b
 
-// Stampa numeri a due cifre sulla seriale (es: 09 invece di 9)
-void p2(int v) { if(v < 10) myS.print('0'); myS.print(v); }
+void W(int a, byte d) {       // Scrittura su EEPROM
+  while(EECR & (1 << EEPE));  // Attende che eventuali scritture precedenti finiscano
+  EEAR = a;                   // Imposta l'indirizzo di memoria EEPROM
+  EEDR = d;                   // Imposta il dato da scrivere
+  EECR |= (1 << EEMPE);       // Abilita la procedura di scrittura
+  EECR |= (1 << EEPE);        // Avvia la scrittura fisica
+}                             // Fine funzione W
 
-void setup() {
-  pinMode(MOS, OUTPUT);        // Imposta il pin del MOSFET come uscita
-  digitalWrite(MOS, 0);        // Logica P-MOS: accende subito l'Heltec all'avvio
-  myS.begin(9600);             // Inizializza seriale software a 9600 baud
-  TinyWireM.begin();           // Inizializza bus I2C per l'RTC
-  
-  sMin = (EE_r(0) << 8) | EE_r(1); // Ricostruisce soglia minima da EEPROM (byte 0 e 1)
-  sRes = (EE_r(2) << 8) | EE_r(3); // Ricostruisce soglia rientro da EEPROM (byte 2 e 3)
-  pass = (EE_r(8) << 8) | EE_r(9); // Ricostruisce password da EEPROM (byte 8 e 9)
-  oON = EE_r(4); mON = EE_r(5);    // Carica ora e minuto di accensione (byte 4 e 5)
-  oOFF = EE_r(6); mOFF = EE_r(7);  // Carica ora e minuto di spegnimento (byte 6 e 7)
-  
-  if (pass <= 0 || pass > 9999) pass = 1234; // Sicurezza: se password corrotta usa 1234
-  if (sMin > 5000) sMin = 3400;              // Sicurezza: se soglia minima sballata usa 3.4V
-}
+byte R_(int a) {              // Lettura da EEPROM
+  while(EECR & (1 << EEPE));  // Attende che l'hardware EEPROM sia pronto
+  EEAR = a;                   // Imposta l'indirizzo da leggere
+  EECR |= (1 << EERE);        // Abilita la lettura
+  return EEDR;                // Restituisce il valore letto
+}                             // Fine funzione R_
 
-void loop() {
-  if (myS.available()) {                    // Se ci sono caratteri dalla seriale
-    char c = myS.read();                    // Legge il carattere iniziale
-    if (c == '!') {                         // Se inizia con '!', procedi al comando
-      int pIn = 0;                          // Variabile per password ricevuta
-      for(byte j=0; j<4; j++) {             // Ciclo per leggere le 4 cifre della pass
-        unsigned long tO = millis();        // Timer per timeout ricezione
-        while(!myS.available() && millis()-tO < 300); // Aspetta il carattere
-        pIn = (pIn * 10) + (myS.read() - '0'); // Converte e somma la cifra
+unsigned int vV() {           // Lettura tensione batteria con offset diodo
+  ADMUX = 12;                 // Imposta il riferimento ADC internamente (VCC)
+  delay(5);                   // Breve pausa per stabilizzare la lettura
+  ADCSRA |= 64;               // Avvia il processo di conversione analogico-digitale
+  while(ADCSRA & 64);         // Attende il completamento della conversione
+  unsigned int v = (unsigned int)(1090270L / (ADCL | (ADCH << 8))); // Calcolo voltaggio (mV)
+  return v + 300;             // Aggiunge 300mV di offset per compensare il diodo Schottky
+}                             // Fine funzione vV
+
+void setup() {                // Setup iniziale
+  pinMode(M, OUTPUT);         // Imposta pin MOSFET come output
+  digitalWrite(M, LOW);       // MOSFET spento al boot
+  wdt_disable();              // Disabilita watchdog prima di configurarlo
+  s.begin(9600);              // Avvia la porta seriale a 9600 baud
+  TinyWireM.begin();          // Inizializza il bus I2C
+  sN = (R_(0) << 8) | R_(1);  // Carica soglia minima da EEPROM
+  sS = (R_(2) << 8) | R_(3);  // Carica soglia ripristino da EEPROM
+  P = (R_(8) << 8) | R_(9);   // Carica password da EEPROM
+  ON = (R_(4) * 100) + R_(5); // Carica orario accensione
+  OF = (R_(6) * 100) + R_(7); // Carica orario spegnimento
+  tA = (unsigned long)R_(10) * 3600000UL; // Carica timer sistema A in ore
+  tH = (unsigned long)R_(11) * 3600000UL; // Carica timer carico H in ore
+  lR = millis();              // Inizializza timer reset A con tempo attuale
+  lH = lR;                    // Inizializza timer reset H con tempo attuale
+  wdt_enable(WDTO_8S);        // Abilita il Watchdog a 8 secondi
+}                             // Fine setup
+
+void loop() {                 // Ciclo continuo
+  wdt_reset();                // "Nutre" il watchdog per evitare reset involontari
+  //  era la riga sotto if(millis() - lR > 3600000 || (tA > 0 && millis() - lR > tA)) { // Controllo tempo reset sistema
+  if(tA > 0 && millis() - lR > tA){ // Controllo tempo reset sistema
+    s.write("RST A");         // Invia notifica via seriale
+    s.flush();                // Assicura che la stringa esca prima di resettare
+    delay(3000);              // Pausa per evitare transitori e far vedere la notifica
+    wdt_enable(WDTO_15MS);    // Attiva watchdog a 15ms per forzare il riavvio
+    while(1);                 // Loop infinito che scatena il reset del WDT
+  }                           // Fine blocco Reset A
+  if(tH > 0 && millis() - lH > tH) { // Controllo tempo reset carico
+    s.write("RST H");         // Invia notifica seriale
+    delay(5000);              // Pausa di 5s per completare la trasmissione
+    digitalWrite(M, HIGH);    // Spegne il MOSFET (carico OFF)
+    for(int i = 0; i < 50; i++) { wdt_reset(); delay(100); } // Attende 5s con WDT attivo
+    digitalWrite(M, LOW);     // Accende il MOSFET (carico ON)
+    lH = millis();            // Resetta il timer H
+  }                           // Fine blocco Reset H
+
+  if(s.available() && s.read() == '!') { // Parser comandi: attende il carattere '!'
+    int p = 0;                // Variabile temporanea per inserimento password
+    for(byte j = 0; j < 4; j++) { // Legge le 4 cifre della password
+      unsigned long t = millis();
+      while(!s.available() && millis() - t < 300); // Timeout lettura
+      p = (p * 10) + (s.read() - '0'); // Accumula cifre
+    }
+    if(p == P) {              // Se password corretta, esegue comandi
+      unsigned long t = millis();
+      while(!s.available() && millis() - t < 300);
+      char c = s.read();      // Legge il comando
+      char s_ = 0;            // Eventuale sottocomando
+      unsigned int v = 0;     // Eventuale valore numerico
+      if(c == 'O' || c == 'g') { // Se comando prevede sottocomando
+        t = millis();
+        while(!s.available() && millis() - t < 300);
+        s_ = s.read();
       }
-
-      if (pIn == pass) {                    // Se la password coincide
-        unsigned long tO = millis();        // Timer per timeout comando
-        while(!myS.available() && millis()-tO < 300); // Aspetta comando
-        char cmd = myS.read();              // Legge la lettera del comando
-        char sub = ' ';                     // Variabile per sotto-comando
-        if(cmd == 'O' || cmd == 'g') {      // Se comando O o g, serve un secondo carattere
-           while(!myS.available());         // Aspetta il sotto-comando
-           sub = myS.read();                // Legge il sotto-comando
-        }
-
-        long val = 0;                       // Variabile per il valore numerico
-        while(true) {                       // Ciclo per estrarre il valore
-          tO = millis();                    // Timeout per ogni cifra
-          while(!myS.available() && millis()-tO < 400); // Aspetta cifra
-          if(!myS.available()) break;       // Se non arriva nulla, esce
-          char n = myS.peek();              // Sbircia il buffer
-          if(n >= '0' && n <= '9') val = (val * 10) + (myS.read() - '0'); // Accumula numero
-          else { myS.read(); break; }       // Esce se trova carattere non numerico
-        }
-
-        if (cmd == 'T') {                   // Comando IMPOSTA ORA (RTC)
-           TinyWireM.beginTransmission(RTC); TinyWireM.send(0); TinyWireM.send(0); // Punta secondi
-           TinyWireM.send(d2b(val%100));    // Invia minuti convertiti in BCD
-           TinyWireM.send(d2b(val/100));    // Invia ore convertite in BCD
-           TinyWireM.endTransmission(); myS.println('T'); // Fine I2C e conferma
-        }
-        else if (cmd == 'R') {              // Comando RESET FISICO HELTEC
-           digitalWrite(MOS, 1); delay(5000); digitalWrite(MOS, 0); // Off 5s poi On
-           myS.println('R');                // Conferma Reset
-        }
-        else if (cmd == 'M') { sMin=(unsigned int)val; EE_w(0,sMin>>8); EE_w(1,sMin&255); myS.println('M'); } // Salva sMin
-        else if (cmd == 'W') { sRes=(unsigned int)val; EE_w(2,sRes>>8); EE_w(3,sRes&255); myS.println('W'); } // Salva sRes
-        else if (cmd == 'O') {              // Comando ORARI ACCENSIONE
-           if(sub == 'N') { oON=val/100; mON=val%100; EE_w(4,oON); EE_w(5,mON); } // Salva ON
-           if(sub == 'F') { oOFF=val/100; mOFF=val%100; EE_w(6,oOFF); EE_w(7,mOFF); } // Salva OFF
-           myS.println('K');                // Conferma OK
-        }
-        else if (cmd == 'g') {              // Comando GET (LETTURA DATI)
-           if (sub == 'B') { myS.print(readV()); myS.print('-'); myS.print(sMin); myS.print('-'); myS.println(sRes); } // Batteria
-           else if (sub == 'P') { p2(oON); myS.print(':'); p2(mON); myS.print('-'); p2(oOFF); myS.print(':'); p2(mOFF); myS.println(); } // Orari
-           else if (sub == 'T') {           // Legge ora attuale dall'RTC
-              TinyWireM.beginTransmission(RTC); TinyWireM.send(1); TinyWireM.endTransmission(); // Punta minuti
-              TinyWireM.requestFrom(RTC, 2); // Chiede 2 byte
-              byte m_rtc = b2d(TinyWireM.receive()); // Converte minuti
-              byte h_rtc = b2d(TinyWireM.receive() & 63); // Converte ore
-              p2(h_rtc); myS.print(':'); p2(m_rtc); myS.println(); // Stampa ora
-           }
-        }
-        else if (cmd == 'P') { pass=(int)val; EE_w(8,pass>>8); EE_w(9,pass&255); myS.println('P'); } // Salva Password
+      while(true) {           // Legge il valore numerico inviato
+        t = millis();
+        while(!s.available() && millis() - t < 300);
+        if(!s.available()) break;
+        char n = s.peek();    // Anteprima carattere
+        if(n >= '0' && n <= '9') v = (v * 10) + (s.read() - '0'); // Accumula valore
+        else { s.read(); break; }
       }
+      if(c == 'A' || c == 'H') { // Comando imposta timer
+        if(c == 'A') { tA = (unsigned long)v * 3600000UL; W(10, v); } // Salva in ore
+        else { tH = (unsigned long)v * 3600000UL; W(11, v); }        // Salva in ore
+        s.write('K');         // Conferma OK
+      }
+      else if(c == 'N' || c == 'F') { // Imposta orari ON/OFF
+        W(c == 'N' ? 4 : 6, v / 100); W(c == 'N' ? 5 : 7, v % 100);
+        if(c == 'N') ON = v; else OF = v; s.write('K');
+      }
+      else if(c == 'g') {     // Comando di lettura dati (get)
+          if(s_ == 'A' || s_ == 'H') out(s_ == 'A' ? tA / 3600000UL : tH / 3600000UL); // Legge ore
+          else if(s_ == 'B') { out(vV()); s.write('-'); out(sN); s.write('-'); out(sS); } // Legge batt
+          else if(s_ == 'T') { // Legge ora RTC
+            TinyWireM.beginTransmission(RTC); TinyWireM.send(1); TinyWireM.endTransmission();
+            TinyWireM.requestFrom(RTC, 2); byte m = b2d(TinyWireM.receive()); byte h = b2d(TinyWireM.receive() & 63);
+            out2(h); s.write(':'); out2(m);
+          }
+          else if(s_ == 'P') { // Legge orari configurati
+            out2(ON / 100); s.write(':'); out2(ON % 100); s.write('-'); out2(OF / 100); s.write(':'); out2(OF % 100);
+          }
+          else s.write('E'); // Comando errato
+      }
+      else if(c == 'T') { // Imposta ora RTC
+        TinyWireM.beginTransmission(RTC); TinyWireM.send(0); TinyWireM.send(0); TinyWireM.send(d2b(v % 100)); TinyWireM.send(d2b(v / 100)); TinyWireM.endTransmission();
+        s.write('K');
+      }
+      else if(c == 'M' || c == 'W') { // Salva soglie tensione
+        if(c == 'M') { sN = v; W(0, v >> 8); W(1, v & 255); } else { sS = v; W(2, v >> 8); W(3, v & 255); }
+        s.write('K');
+      }
+      else if(c == 'P') { P = v; W(8, v >> 8); W(9, v & 255); s.write('K'); }
+      else if(c == 'R') { // Reset manuale carico
+        s.write("RST H"); delay(6000); digitalWrite(M, HIGH);
+        for(int i = 0; i < 50; i++) { wdt_reset(); delay(100); }
+        digitalWrite(M, LOW);
+      }
+      else s.write('E'); // Comando errore
     }
   }
 
-  static unsigned long l = 0;               // Timer statico per controllo ogni 10s
-  static bool bloccoBatteria = false;       // Stato persistente della protezione batteria
-  
-  if (millis() - l > 10000) {               // Se passati 10 secondi dall'ultimo controllo
-    l = millis();                           // Aggiorna timer controllo
-    TinyWireM.beginTransmission(RTC); TinyWireM.send(1); TinyWireM.endTransmission(); // Punta minuti
-    TinyWireM.requestFrom(RTC, 2);          // Chiede minuti e ore all'RTC
-    int m = b2d(TinyWireM.receive());       // Legge minuti
-    int h = b2d(TinyWireM.receive() & 63);  // Legge ore (filtro formato 24h)
-    unsigned int vcc = readV();             // Legge tensione batteria in millivolt
-    int t = h * 100 + m, tN = oON * 100 + mON, tF = oOFF * 100 + mOFF; // Calcola valori temporali
-    bool in = (tN < tF) ? (t >= tN && t < tF) : (t >= tN || t <= tF); // Logica finestra oraria (anche mezzanotte)
-    
-    if (vcc > 2000) {                       // Agisce solo se rileva batteria valida (>2V)
-        
-        // 1. GESTIONE ISTERESI (Aggiornamento stato blocco)
-        if (vcc < sMin) bloccoBatteria = true;   // Se scende sotto sMin, attiva blocco
-        else if (vcc >= sRes) bloccoBatteria = false; // Se sale sopra sRes, toglie blocco
-
-        // 2. DECISIONE FINALE (Priorità alla sicurezza batteria)
-        if (bloccoBatteria) {               // Se il blocco batteria è attivo
-            digitalWrite(MOS, 1);           // MOSFET SPENTO (Gate HIGH) a prescindere dal timer
-        } 
-        else {                              // Se la batteria è considerata sicura
-            if (in) digitalWrite(MOS, 0);   // Se siamo in orario: ACCENDI (Gate LOW)
-            else    digitalWrite(MOS, 1);   // Se siamo fuori orario: SPEGNI (Gate HIGH)
-        }
-    }
+  static unsigned long l = 0; // Timer per il controllo periodico 10s
+  static bool b = true;       // Flag blocco batteria
+  if(millis() - l > 10000) {  // Ogni 10 secondi
+    l = millis();
+    TinyWireM.beginTransmission(RTC); TinyWireM.send(1); TinyWireM.endTransmission();
+    TinyWireM.requestFrom(RTC, 2); byte m_raw = TinyWireM.receive(); byte h_raw = TinyWireM.receive();
+    int ora = (b2d(h_raw & 63) * 100) + b2d(m_raw); // Legge orario corrente
+    int V = vV();             // Legge voltaggio
+    if (V >= sS) b = false;   // Sblocca se batteria sopra soglia ripristino
+    else if (V < sN) b = true;// Blocca se sotto soglia minima
+    bool ok = false;          // Verifica finestra oraria
+    if (ON < OF) { if (ora >= ON && ora < OF) ok = true; }
+    else { if (ora >= ON || ora < OF) ok = true; }
+    if (b) digitalWrite(M, HIGH); // Forza OFF se batteria bassa
+    else digitalWrite(M, ok ? LOW : HIGH); // Gestione oraria (MOSFET LOW = Acceso)
   }
 }
