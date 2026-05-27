@@ -202,7 +202,7 @@ Per ovviare a questo limite hardware, il firmware implementa un sistema di **Fee
 * **`R`** $\rightarrow$ **Reset:** Conferma che il comando di Hard Reset fisico è stato preso in carico.
 * **`A`** $\rightarrow$ **ATtiny**: Conferma che il timer di reset periodico dell'ATtiny è stato impostato.
 * **`H`** $\rightarrow$ **Heltec**: Conferma che il timer di reset fisico del carico è stato impostato.
-* **`E`** $\rightarrow$ **Heltec**: Errore invio del comando. Comando non riconosciuto.
+* **`E`** $\rightarrow$ **Error**: Errore invio del comando. Comando non riconosciuto.
 
  ### Nota bene sui comandi di lettura (Get)
  ##### I comandi che iniziano con g (es. gA, gH, gB, gP, gT) non restituiscono un feedback di conferma K, ma inviano direttamente il valore corrente del parametro richiesto sulla seriale, permettendoti di monitorare lo stato del nodo in tempo reale.
