@@ -219,8 +219,8 @@ Tutti i valori di tensione devono essere espressi in millivolt (es. 3.4V diventa
 | **`!1234T[HHMM]`** | Sincronizza l'ora e i minuti correnti sul modulo orologio hardware RTC. | `T` | `!1234T1435` (Imposta l'orologio alle 14:35) |
 | **`!1234M[mV]`** | Modifica la soglia minima di spegnimento d'emergenza (`sMin`). | `M` | `!1234M3400` (Imposta lo spegnimento a 3.40V) |
 | **`!1234W[mV]`** | Modifica la soglia di sblocco e risveglio dall'isteresi (`sRes`). | `W` | `!1234W3650` (Imposta il wakeup a 3.65V) |
-| **`!1234N[HHMM]`**| Imposta l'orario del timer giornaliero per l'accensione dell'Heltec. | `K` | `!1234ON0815` (Accensione automatica alle 08:15) |
-| **`!1234F[HHMM]`**| Imposta l'orario del timer giornaliero per lo spegnimento dell'Heltec. | `K` | `!1234OF2315` (Spegnimento automatico alle 23:15) |
+| **`!1234N[HHMM]`**| Imposta l'orario del timer giornaliero per l'accensione dell'Heltec. | `K` | `!1234N0815` (Accensione automatica alle 08:15) |
+| **`!1234F[HHMM]`**| Imposta l'orario del timer giornaliero per lo spegnimento dell'Heltec. | `K` | `!1234F2315` (Spegnimento automatico alle 23:15) |
 | **`!1234P[Nuovo]`** | Sostituisce il vecchio PIN di sicurezza con un nuovo codice a 4 cifre. | `P` | `!1234P5678` (Cambia il PIN d'accesso in 5678) |
 | **`!1234R0`** | **Hard Reset Fisico:** Forza il MOSFET a spegnere l'Heltec per 5s e poi lo riaccende. | `R` | `!1234R0` (Sblocca l'Heltec se congelato o in crash) |
 
