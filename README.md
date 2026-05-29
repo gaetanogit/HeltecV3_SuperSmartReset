@@ -222,7 +222,7 @@ Tutti i valori di tensione devono essere espressi in millivolt (es. 3.4V diventa
 | **`!1234N[HHMM]`**| Imposta l'orario del timer giornaliero per l'accensione dell'Heltec. | `K` | `!1234N0815` (Accensione automatica alle 08:15) |
 | **`!1234F[HHMM]`**| Imposta l'orario del timer giornaliero per lo spegnimento dell'Heltec. | `K` | `!1234F2315` (Spegnimento automatico alle 23:15) |
 | **`!1234P[Nuovo]`** | Sostituisce il vecchio PIN di sicurezza con un nuovo codice a 4 cifre. | `P` | `!1234P5678` (Cambia il PIN d'accesso in 5678) |
-| **`!1234R0`** | **Hard Reset Fisico:** Forza il MOSFET a spegnere l'Heltec per 5s e poi lo riaccende. | `R` | `!1234R0` (Sblocca l'Heltec se congelato o in crash) |
+| **`!1234R0`** | **Hard Reset Fisico:** Forza il MOSFET a spegnere l'Heltec per 5s e poi lo riaccende. | `R` | `!1234R0` (Reset dell' Heltec.. riavvio) |
 
 
 
