@@ -285,3 +285,12 @@ Per garantire la stabilità della seriale software a 9600 baud ed evitare la cor
    * **Clock:** `8 MHz (Internal)` $\leftarrow$ *FONDAMENTALE: Se lasci l'impostazione di fabbrica a 1 MHz, il timing della seriale sballerà e i comandi radio risulteranno illeggibili.*
 4. **Scrittura dei Fuse:** Collega la Digispark al PC, seleziona il tuo programmatore e clicca sulla voce **"Scrivi Bootloader"**. Questo passaggio non carica lo sketch, ma modifica i *fuse* interni del chip forzando l'oscillatore interno a lavorare a 8 MHz. *(Operazione obbligatoria solo la prima volta).*
 5. **Caricamento Firmware:** Clicca sulla freccia di caricamento (o *Carica tramite un programmatore*) per flashare lo sketch definitivo.
+---
+## 🎥 Video Dimostrativo
+Se vuoi vedere il **SuperSmartReset** in azione, clicca sull'immagine qui sotto:
+
+[![Guarda il video del SuperSmartReset](https://img.youtube.com/vi/lJi6TjBzJMY/0.jpg)](https://www.youtube.com/watch?v=lJi6TjBzJMY)
+
+---
+## 🤝 Contatti e Supporto
+Se hai domande o suggerimenti, sentiti libero di aprire una *Issue* in questo repository o di commentare direttamente sotto il video su YouTube!
