@@ -58,7 +58,7 @@ void setup() {                // Setup iniziale
   pinMode(M, OUTPUT);         // Imposta pin MOSFET come output
   digitalWrite(M, LOW);       // MOSFET spento al boot
   wdt_disable();              // Disabilita watchdog prima di configurarlo
-  s.begin(9600);              // Avvia la porta seriale a 9600 baud
+  s.begin(4800);              // Avvia la porta seriale a 9600 baud
   TinyWireM.begin();          // Inizializza il bus I2C
   sN = (R_(0) << 8) | R_(1);  // Carica soglia minima da EEPROM
   sS = (R_(2) << 8) | R_(3);  // Carica soglia ripristino da EEPROM
@@ -158,7 +158,7 @@ void loop() {                 // Ciclo continuo
   }
 
   static unsigned long l = 0; // Timer per il controllo periodico 10s
-  static bool b = true;       // Flag blocco batteria
+  static bool b = false;       // Flag blocco batteria   //era b=true a in fase di accensione in caso di tensione di batt nel mezzo della finestra operativa si spegneva immediatamente il nodo.
   if(millis() - l > 10000) {  // Ogni 10 secondi
     l = millis();
     TinyWireM.beginTransmission(RTC); TinyWireM.send(1); TinyWireM.endTransmission();
